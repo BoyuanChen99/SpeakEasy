@@ -41,6 +41,7 @@ To use HarmScore to evaluate the actionability and informativeness (and thus, ha
     "query_1": "response_1",
     "query_2": "response_2"
 }
+```
 
 Each query is mapped to a corresponding generated response. To run the evaluation, use the following command in your terminal:
 
