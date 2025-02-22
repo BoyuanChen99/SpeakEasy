@@ -1,14 +1,7 @@
-# Cache folders
 __pycache__
 .ipynb_checkpoints
 .slurm_outputs/
-wandb/
-
-# Virtual environment
 .venv
-
-# Data files
 .archive
-
-# Access keys
+wandb/
 keys.json

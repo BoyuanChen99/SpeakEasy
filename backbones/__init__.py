@@ -28,8 +28,8 @@ def get_backbone(model_name):
         model = OpenAIModel(model_name.split(":")[-1])
 
     elif model_source == "vllm":
-        from vllm_model import VLLMModel
-        model = VLLMModel(model_name.split(":")[-1])
+        from vllm_model import vLLMModel
+        model = vLLMModel(model_name.split(":")[-1])
         
     else:
         from ollama_model import OllamaModel

@@ -1,55 +1,64 @@
-# Speak Easy: Eliciting Harmful Jailbreaks from LLMs with Simple Interactions
+# Speak Easy: Eliciting Harmful Jailbreaks from LLMs with Simple Interactions  {#speak-easy}
 
-This repository includes the code used in the [**Speak Easy**](https://arxiv.org/abs/2502.04322v1) paper. We show that simple interactions such as multi-step, multilingual querying can elicit sufficiently harmful jailbreaks from LLMs. We also design a metric, HarmScore, to measure the actionability and informativeness of jailbreak responses. 
+This repository contains the code for our paper [Speak Easy: Eliciting Harmful Jailbreaks from LLMs with Simple Interactions](https://arxiv.org/abs/2502.04322v1). 
+We show that simple interactions such as multi-step, multilingual querying can elicit sufficiently harmful jailbreaks from LLMs. We design a metric (HarmScore) to measure the actionability and informativeness of jailbreak responses, and a straightforward attack method (Speak Easy) that significantly increases the success of these exploits across multiple benchmarks.
 
-## Dependencies
-The primary dependencies are:
+<img src="./Speak_Easy.png" width="1000px"></img>
+
+**NOTE:** We are not publicly releasing the code for the Speak Easy framework at this time for safety reasons. Please contact the paper authors for access.
+
+## Requirements
 
 ```
+# Primary libraries
 torch
-ollama
-transformers
+numpy
 openai
-huggingface-cli
-box
+transformers
+
+# Utility libraries
 tqdm
+pyyaml
+python-box
+
+# Additional dependencies
+ray
+vllm
+ollama
 ```
 
-For a comprehensive list of required libraries and their versions, please refer to the [`requirements.txt`](requirements.txt) file.
-Ensure that you have access to necessary APIs (e.g., OpenAI API) and have configured the authentication tokens.
+## Evaluator Usage Example
+All data files to be evaluated must adhere to the following format:
 
+```python
+[
+  {
+    "query": "malicious query",
+    "response": "response to query"
+  },
+  ...
+]
+```
+You can evaluate files containing query-response pairs by running:
+```bash
+export CUDA_VISIBLE_DEVICES=# Specify GPUs
+python score_qa_pairs.py --data-dir "path to data" --save-dir "save location" --scorer "scorer to use"
+```
+The above creates a new file at `save_dir` that contains the same query-response pairs as the original data, with an added score key representing the evaluator’s assigned score.
+We have provided an example data file under `data/sample_data.json`. 
 
-## Repository Structure
-For safety reasons, we are not publicly releasing the code for implementing the Speak Easy framework at this time. However, we do plan to release it at a later date. If you would like access now, please contact the corresponding author of the paper.
+## Questions
+Any questions related to the code or the paper can be directed to Yik Siu Chan (yik_siu_chan@brown.edu) or Narutatsu Ri (wl2787@columbia.edu). 
+If you encounter any problems when using the code or want to report a bug, please open an issue.
 
-The current repository contains: 
-- `backbones`: Code for loading and defining LLM backbones (currently supports Ollama, OpenAI models, and vLLM models).
-- `data`: Datasets with harmful instructions for benchmarking jailbreak methods.
-- `eval_models`: Implementations for measuring and evaluating harmfulness, including ASR and HarmScore.
-- `utils`: Constants and helper functions.
+## Citation
+Please cite our paper if you find our repository helpful in your work:
 
-To be released: 
-- `frameworks`: Implementations of all attack frameworks tested in our paper (e.g., DR + Speak Easy, GCG + Speak Easy).
-
-
-## Evaluation with HarmScore
-
-To use HarmScore to evaluate the actionability and informativeness (and thus, harmfulness) of jailbreak responses, you can provide your input data as a JSON file with the following **query-response** format:
-
-```json
-{
-    "query_1": "response_1",
-    "query_2": "response_2"
+```bibtex
+@inproceedings{chan2025speakeasy,
+  title={Speak Easy: Eliciting Harmful Jailbreaks from LLMs with Simple Interactions}, 
+  author={Yik Siu Chan and Narutatsu Ri and Yuxin Xiao and Marzyeh Ghassemi},
+  year={2025},
+  url={https://arxiv.org/abs/2502.04322}, 
 }
 ```
-
-Each query is mapped to a corresponding generated response. To run the evaluation, use the following command in your terminal:
-
-```
-python3 evaluate.py path/to/input.json
-
-```
-The script will compute harm scores for each response and save the average score in average_harm_scores.json.
-
-
----
