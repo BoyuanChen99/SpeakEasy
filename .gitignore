@@ -5,3 +5,5 @@ __pycache__
 .archive
 wandb/
 keys.json
+results
+**.DS_Store
