@@ -1,42 +1,39 @@
 import os
 import json
+import torch 
 
 import ray
-import yaml
-import torch 
-from box import Box
-from tqdm import tqdm
 from vllm import LLM, SamplingParams
+from tqdm import tqdm
+from munch import Munch
+
 from transformers import AutoTokenizer
+from huggingface_hub import login as hf_login
 
-
-class vLLMModel:
-    def __init__(self, model_name: str) -> None:
+class VLLMModel:
+    def __init__(self, model_name_or_path, num_gpus=None, hf_token=None):
         """
-        Initializes the vLLMModel instance.
-
-        Loads configuration from 'config.yaml', determines the number of available GPUs,
-        initializes the tokenizer, sets up sampling parameters, and creates the LLM model instance.
-        If multiple GPUs are available, Ray is initialized for tensor parallelism.
-
-        Args:
-            model_name (str): The name or path of the model to load.
+        Initialize the VLLM model with configurations and GPU settings.
         """
-        config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
-        with open(config_path, "r") as file:
-            config = Box(yaml.safe_load(file))
-            
-        num_gpus = torch.cuda.device_count()
+        if hf_token:
+            hf_login(hf_token)
+        
+        if num_gpus is None:
+            num_gpus = torch.cuda.device_count()
 
-        self.model_name = model_name
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model_name = model_name_or_path
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
 
         if num_gpus > 1:
             ray.init(ignore_reinit_error=True)
-            
-        self.temperature = config.temperature
-        self.top_p = config.top_p
-        self.max_tokens = config.max_tokens
+            resources = ray.cluster_resources()
+            available_devices = ",".join([str(i) for i in range(int(resources.get("GPU", 0)))])
+            os.environ['CUDA_VISIBLE_DEVICES'] = available_devices
+
+        params = Munch.fromYAML(open(os.path.join(os.path.dirname(__file__), "config.yaml"), "r"))
+        self.temperature = params.temperature
+        self.top_p = params.top_p
+        self.max_tokens = params.max_tokens
 
         self.sampling_params = SamplingParams(
             temperature=self.temperature,
@@ -44,29 +41,19 @@ class vLLMModel:
             max_tokens=self.max_tokens
         )
 
-        self.llm = LLM(
-            model=model_name,
-            tensor_parallel_size=num_gpus,
-            gpu_memory_utilization=0.95,
-            dtype=torch.float16,
-            max_model_len=4096
-        )
+        self.llm = LLM(model=model_name_or_path, tensor_parallel_size=num_gpus, gpu_memory_utilization=0.95, dtype=torch.float16, max_model_len=4096)
 
-    def infer_batch(self, inputs: list, save_dir: str, batch_size: int = 1) -> list:
+    def infer_batch(self, inputs, save_dir, batch_size=1):
         """
-        Performs batch inference on the input data and saves the responses.
-
-        Processes the input prompts in batches, applies a chat template to format the prompt,
-        generates outputs using the vLLM model, and appends the responses to a file at `save_dir`.
-        If a responses file already exists, it is loaded and new responses are appended.
+        Perform batch inference on the input data.
 
         Args:
-            inputs (list): Input data as a list of prompt strings.
-            save_dir (str): The file path where the output responses are saved (JSON file).
-            batch_size (int, optional): Number of samples to process in a batch. Defaults to 1.
+            inputs (list): Input data in string format.
+            save_dir (str): Path to save the output responses.
+            batch_size (int): Number of samples to process in a batch.
 
         Returns:
-            list: The complete list of generated responses.
+            list: The complete list of responses.
         """
         responses = (
             json.load(open(save_dir, "r")) if os.path.exists(save_dir) else list()
@@ -76,21 +63,18 @@ class vLLMModel:
         for i in tqdm(range(start_index, len(inputs), batch_size), desc="Processing"):
             batch_inputs = inputs[i:i + batch_size]
             messages = [
-                {"role": "system", "content": ""},
-                {"role": "user", "content": batch_inputs[0]}
-            ]
+            {"role": "system", "content": ""},
+            {"role": "user", "content": batch_inputs[0]}]
 
-            prompt = self.tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True
-            )
+            prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
             try:
                 outputs = self.llm.generate([prompt], self.sampling_params)
             except Exception as e:
                 print(f"Error during generation: {e}")
-                outputs = None
+                outputs = []
 
-            # Parse outputs and append responses
+            # Parse outputs
             for output_idx, input_text in enumerate(batch_inputs):
                 if outputs and output_idx < len(outputs) and outputs[output_idx].outputs:
                     responses.append(outputs[output_idx].outputs[0].text)

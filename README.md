@@ -1,64 +1,126 @@
-# Speak Easy: Eliciting Harmful Jailbreaks from LLMs with Simple Interactions  {#speak-easy}
+# Speak Easy: Eliciting Harmful Jailbreaks from LLMs with Simple Interactions
 
-This repository contains the code for our paper [Speak Easy: Eliciting Harmful Jailbreaks from LLMs with Simple Interactions](https://arxiv.org/abs/2502.04322v1). 
-We show that simple interactions such as multi-step, multilingual querying can elicit sufficiently harmful jailbreaks from LLMs. We design a metric (HarmScore) to measure the actionability and informativeness of jailbreak responses, and a straightforward attack method (Speak Easy) that significantly increases the success of these exploits across multiple benchmarks.
+This repository contains the official implementation for our ICML paper submission titled "Speak Easy: Eliciting Harmful Jailbreaks from LLMs with Simple Interactions". 
 
-<img src="./Speak_Easy.png" width="1000px"></img>
+Note: Due to the large size of the results files, we are unable to include them in the submission. However, we will provide them upon request. We plan to release the evaluation models for HarmScore after the review period ends.
 
-**NOTE:** We are not publicly releasing the code for the Speak Easy framework at this time for safety reasons. Please contact the paper authors for access.
+## Table of Contents
 
-## Requirements
+- [Description](#description)
+- [Dependencies](#dependencies)
+- [Installation](#installation)
+- [Repository Structure](#repository-structure)
+- [Usage](#usage)
+  - [Speak Easy](#speakeasy)
+  - [Translators](#translators)
+  - [Frameworks](#frameworks)
+- [Metrics](#metrics)
+
+## Description
+This repository provides the implementation of our proposed **Speak Easy** method for jailbreaking LLMs. Our approach uses simple multi-step and multilingual querying to elicit sufficiently harmful responses. 
+
+## Dependencies
+The primary dependencies are:
 
 ```
-# Primary libraries
 torch
-numpy
-openai
-transformers
-
-# Utility libraries
-tqdm
-pyyaml
-python-box
-
-# Additional dependencies
-ray
-vllm
 ollama
+transformers
+openai
+huggingface-cli
+box
+tqdm
 ```
 
-## Evaluator Usage Example
-All data files to be evaluated must adhere to the following format:
+For a comprehensive list of required libraries and their versions, please refer to the [`requirements.txt`](requirements.txt) file.
 
-```python
-[
-  {
-    "query": "malicious query",
-    "response": "response to query"
-  },
-  ...
-]
+## Installation
+
+To install the required dependencies, run:
+
 ```
-You can evaluate files containing query-response pairs by running:
-```bash
-export CUDA_VISIBLE_DEVICES=# Specify GPUs
-python score_qa_pairs.py --data-dir "path to data" --save-dir "save location" --scorer "scorer to use"
+pip install -r requirements.txt
 ```
-The above creates a new file at `save_dir` that contains the same query-response pairs as the original data, with an added score key representing the evaluator’s assigned score.
-We have provided an example data file under `data/sample_data.json`. 
 
-## Questions
-Any questions related to the code or the paper can be directed to Yik Siu Chan (yik_siu_chan@brown.edu) or Narutatsu Ri (wl2787@columbia.edu). 
-If you encounter any problems when using the code or want to report a bug, please open an issue.
+Ensure that you have access to necessary APIs (e.g., OpenAI API) and have configured the appropriate authentication tokens.
 
-## Citation
-Please cite our paper if you find our repository helpful in your work:
+## Repository Structure
 
-```bibtex
-@inproceedings{chan2025speakeasy,
-  title={Speak Easy: Eliciting Harmful Jailbreaks from LLMs with Simple Interactions}, 
-  author={Yik Siu Chan and Narutatsu Ri and Yuxin Xiao and Marzyeh Ghassemi},
-  year={2025},
-  url={https://arxiv.org/abs/2502.04322}, 
-}
+Here is a brief description of the contents of each folder and file in the repository:
+
+- `backbones`: Code for loading and defining LLM backbones (currently supports Ollama, OpenAI models, and vLLM models).
+- `data`: Datasets for benchmarking jailbreak efficacy and test sets for evaluating response selection models.
+- `eval_models`: Implementations for measuring and evaluating harmfulness, including ASR and HarmScore.
+- `frameworks`: Implementations of all attack frameworks tested in our paper (e.g., DR + Speak Easy, GCG + Speak Easy).
+- `resp_select_models`: Code for HarmScore to load and compute actionability and informativeness.
+- `results`: Outputs of frameworks and evaluation results.
+- `translation`: Code for loading and using translation modules.
+- `utils`: Constants and helper functions.
+
+## Usage
+
+### Speak Easy
+
+You can use our Speak Easy framework either independently (on top of direct requests) or in combination with existing jailbreak methods such as GCG. To run the framework, execute:
+
 ```
+python run_frameworks.py --data-dir [DATASET] \
+                         --save-dir results/ \
+                         --model [BACKBONE] \
+                         --frameworks [FRAMEWORK]
+```
+
+- `[DATASET]`: Path to a JSON file containing queries, formatted as:
+
+  ```
+  [
+      { "query": "query1" },
+      { "query": "query2" },
+      ...
+  ]
+  ```
+
+- `[BACKBONE]`: Specifies the model to use, in the format `[MODEL_FAMILY]:[MODEL]`, e.g., `openai:gpt-4`.
+
+- `[FRAMEWORK]`: The attack framework to use. For a list of available frameworks, refer to the `get_framework()` function in `frameworks/__init__.py`.
+
+### Translators
+
+Our framework supports multiple translation modules to facilitate multilingual attacks. To load a translator:
+
+```
+from translation import get_translator
+
+translator = get_translator("[TRANSLATOR_NAME]")
+```
+
+Supported translators include:
+
+- [Azure Translator API](https://learn.microsoft.com/en-us/azure/ai-services/translator/)
+- Google Translate via the [`deep-translator`](https://pypi.org/project/deep-translator/) library
+- [Google Cloud Translation API](https://cloud.google.com/translate)
+
+### Frameworks
+
+We implement `Speak Easy` on top of the following frameworks:
+
+- **DR (Direct Request)**
+- **[GCG (Greedy Coordinate Gradient)](https://github.com/llm-attacks/llm-attacks)**
+  - To replicate our experiments with GCG, you can use the default suffixes provided in the `frameworks/baseline/gcg/config`.yaml. Alternatively, you may choose to regenerate them if needed.
+- **[TAP (Tree of Attacks with Pruning)](https://github.com/RICommunity/TAP)**
+  - To replicate our experiments with TAP, re-run the attack frameworks of `baseline_tap` or `speakeasy_tap` .
+
+## Metrics
+
+We provide implementations for evaluating the attack success and harmfulness of generated outputs. Run the following script specifying the evaluation metric you want to use.
+
+
+```
+from eval_models import get_metric
+
+eval_model = get_metric("gpt4",device=0)
+OR
+eval_model = get_metric("harmscore", device)
+```
+
+---

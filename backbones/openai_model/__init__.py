@@ -1,33 +1,21 @@
 import os
+import json
 import yaml
+
+import random
 import time
 import multiprocessing
 
 import openai
+from openai import OpenAI
+from openai import AzureOpenAI
+
 from box import Box
 from tqdm import tqdm
-from openai import OpenAI
 
-from utils import CHAT_MODELS, partition
-
+from utils import *
 
 def get_prompt_response(instance, model, temperature, max_tokens, top_p):
-    """
-    Generate a prompt response using the OpenAI API.
-
-    Depending on whether the specified model is a chat model (as determined by CHAT_MODELS),
-    this function sends the prompt via the appropriate OpenAI API endpoint and returns the generated response.
-
-    Args:
-        instance (str): The input prompt.
-        model (str): The model name to use.
-        temperature (float): The temperature parameter for generation.
-        max_tokens (int): The maximum number of tokens to generate.
-        top_p (float): The nucleus sampling parameter.
-
-    Returns:
-        str: The generated response text.
-    """
     chat_model = any(chat_model_name in model for chat_model_name in CHAT_MODELS)
 
     if chat_model:
@@ -53,68 +41,47 @@ def get_prompt_response(instance, model, temperature, max_tokens, top_p):
     return response
 
 
-def query_worker(model, inputs, process_id, lock, temperature, max_tokens, top_p):
-    """
-    Worker function for processing a batch of input prompts via the OpenAI API.
+def query_worker(model, inputs, process_id, save_dir, lock, temperature, max_tokens, top_p):
+    """ """
 
-    This function processes a list of inputs by querying the API (using a nested query_loop)
-    while updating a progress bar. It handles retries on various API errors and returns the list of responses.
-
-    Args:
-        model (str): The model name to use for generation.
-        inputs (list): A list of input prompt strings (or lists of strings).
-        process_id (int): The identifier for the current process.
-        lock (multiprocessing.Lock): A lock object to manage concurrent access to shared resources.
-        temperature (float): The temperature parameter for generation.
-        max_tokens (int): The maximum number of tokens to generate.
-        top_p (float): The nucleus sampling parameter.
-
-    Returns:
-        list: A list of generated responses corresponding to the inputs.
-    """
     def query_loop(model, instance, temperature, max_tokens, top_p):
-        """
-        Sends a single prompt instance to the OpenAI API and returns the generated response.
-
-        Handles retries for various API errors such as internal server errors, rate limits, and timeouts.
-        If the instance is an empty string, returns an empty string immediately.
-
-        Args:
-            model (str): The model name to use.
-            instance (str): The prompt instance.
-            temperature (float): The temperature parameter for generation.
-            max_tokens (int): The maximum number of tokens to generate.
-            top_p (float): The nucleus sampling parameter.
-
-        Returns:
-            str: The generated response text.
-        """
+        """ """
         # Edge case: If an empty string is passed, return an empty string
         if instance == "":
             return ""
 
         server_error = False
+
         response = None
-        while response is None:
+        while response == None:
             try:
                 response = get_prompt_response(instance, model, temperature, max_tokens, top_p)
+
             except openai.InternalServerError:
                 # If first time encountering error, change model to long-context version
-                if not server_error:
+                if server_error == False:
                     server_error = True
                     model += "-16k"
+
                 # Otherwise, adding prompt did not help, so exit
                 else:
-                    print("[InternalServerError]: Likely generated invalid Unicode output.")
+                    print(
+                        "[InternalServerError]: Likely generated invalid Unicode output."
+                    )
                     print(instance)
                     exit()
             except openai.BadRequestError:
-                print("[BadAPIRequest]: Likely input too long or invalid settings (e.g. temperature > 2).")
+                print(
+                    "[BadAPIRequest]: Likely input too long or invalid settings (e.g. temperature > 2)."
+                )
                 print(instance)
+                return "Sorry, I cannot assist with that."
+
             except openai.RateLimitError:
                 print("[RateLimitError]: Too many requests. Retrying after 30 seconds...")
                 time.sleep(30)
                 continue
+
             except openai.Timeout:
                 continue
 
@@ -128,25 +95,30 @@ def query_worker(model, inputs, process_id, lock, temperature, max_tokens, top_p
             leave=False,
         )
 
-    # If a partially populated results file exists, load and continue (not implemented here)
-    responses = list()
+    # If partially populated results file exists, load and continue
+    responses = json.load(open(save_dir, "r")) if os.path.exists(save_dir) else list()
     start_index = len(responses)
 
     for instance in inputs[start_index:]:
         with lock:
             bar.update(1)
 
-        # If instance is a list, process each element; otherwise, process the instance directly
-        if isinstance(instance, list):
+        # If instance is a list, pass contents one by one. Otherwise, pass instance
+        if type(instance) == list:
             response = [
-                query_loop(model, instance_item, temperature, max_tokens, top_p)
-                if instance_item != "" else ""
+                (
+                    query_loop(model, instance_item, temperature, max_tokens, top_p)
+                    if instance_item != ""
+                    else ""
+                )
                 for instance_item in instance
             ]
-        elif isinstance(instance, str):
+        elif type(instance) == str:
             response = query_loop(model, instance, temperature, max_tokens, top_p)
 
         responses.append(response)
+
+        json.dump(responses, open(save_dir, "w"), indent=4)
 
     with lock:
         bar.close()
@@ -156,17 +128,10 @@ def query_worker(model, inputs, process_id, lock, temperature, max_tokens, top_p
 
 class OpenAIModel:
     def __init__(self, model_name):
-        """
-        Initializes the OpenAIModel with the specified model name and configuration.
-
-        Loads the API key and generation parameters from 'config.yaml' located in the same directory
-        as this script, and initializes the global OpenAI client.
-
-        Args:
-            model_name (str): The name of the model to use for inference.
-        """
+        """ """
         global client
         args = Box(yaml.safe_load(open(os.path.join(os.path.dirname(__file__), "config.yaml"), "r")))
+
         client = OpenAI(api_key=args.api_key)
 
         self.model = model_name
@@ -175,19 +140,8 @@ class OpenAIModel:
         self.max_tokens = args.max_tokens
         self.top_p = args.top_p
 
-    def infer_batch(self, inputs):
-        """
-        Performs batch inference on a list of inputs using multiprocessing.
-
-        Partitions the input prompts across multiple processes and queries the OpenAI API concurrently
-        using the query_worker function. Collects and returns the combined responses from all processes.
-
-        Args:
-            inputs (list): A list of input prompt strings.
-
-        Returns:
-            list: A list of responses generated by the model.
-        """
+    def infer_batch(self, inputs, save_dir):
+        """ """
         # Partition instances
         paritioned_inputs = partition(inputs, self.num_processes)
 
@@ -201,11 +155,16 @@ class OpenAIModel:
                 self.model,
                 paritioned_inputs[process_id],
                 process_id,
+                save_dir.replace(
+                    "." + save_dir.split(".")[-1],
+                    f"-process={process_id}{'.' + save_dir.split('.')[-1]}",
+                ),
                 lock,
                 self.temperature,
                 self.max_tokens,
                 self.top_p
             )
+
             # Run each worker
             worker_results.append(pool.apply_async(query_worker, args=async_args))
 
