@@ -94,7 +94,8 @@ class SpeakEasy_TAP:
             }
             # Save translated sub queries
             json.dump(
-                translated_subqueries,
+                # translated_subqueries,
+                subqueries,
                 open(save_path, "w", encoding="utf-8"),
                 ensure_ascii=False,
                 indent=4,
