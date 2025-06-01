@@ -7,3 +7,4 @@ wandb/
 keys.json
 results
 **.DS_Store
+**.out
