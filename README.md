@@ -48,7 +48,7 @@ The above creates a new file at `save_dir` that contains the same query-response
 We have provided an example data file under `data/sample_data.json`. 
 
 ## Questions
-Any questions related to the code or the paper can be directed to Yik Siu Chan (yik_siu_chan@brown.edu) or Narutatsu Ri (wl2787@columbia.edu). 
+Any questions related to the code or the paper can be directed to Yik Siu Chan (yik_siu_chan@brown.edu) or Narutatsu Ri (nr3764@princeton.edu). 
 If you encounter any problems when using the code or want to report a bug, please open an issue.
 
 ## Citation
