@@ -1,11 +1,9 @@
 # Speak Easy: Eliciting Harmful Jailbreaks from LLMs with Simple Interactions  {#speak-easy}
 
-This repository contains the code for our paper [Speak Easy: Eliciting Harmful Jailbreaks from LLMs with Simple Interactions](https://arxiv.org/abs/2502.04322v1). 
+This repository contains the code for our paper [Speak Easy: Eliciting Harmful Jailbreaks from LLMs with Simple Interactions](https://arxiv.org/abs/2502.04322). 
 We show that simple interactions such as multi-step, multilingual querying can elicit sufficiently harmful jailbreaks from LLMs. We design a metric (HarmScore) to measure the actionability and informativeness of jailbreak responses, and a straightforward attack method (Speak Easy) that significantly increases the success of these exploits across multiple benchmarks.
 
 <img src="./Speak_Easy.png" width="1000px"></img>
-
-**NOTE:** We are not publicly releasing the code for the Speak Easy framework at this time for safety reasons. Please contact the paper authors for access.
 
 ## Requirements
 
@@ -26,6 +24,7 @@ ray
 vllm
 ollama
 ```
+Please refer to `requirements.txt` for a full list of libraries.
 
 ## Evaluator Usage Example
 All data files to be evaluated must adhere to the following format:
@@ -60,5 +59,6 @@ Please cite our paper if you find our repository helpful in your work:
   author={Yik Siu Chan and Narutatsu Ri and Yuxin Xiao and Marzyeh Ghassemi},
   year={2025},
   url={https://arxiv.org/abs/2502.04322}, 
+  booktitle={Forty-second International Conference on Machine Learning}
 }
 ```
