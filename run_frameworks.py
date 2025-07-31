@@ -32,7 +32,7 @@ for framework in tqdm(cmd_args["frameworks"], ascii=True, desc="Frameworks"):
     os.makedirs(save_dir, exist_ok=True)
     
     # Load framework
-    framework = get_framework(framework, model=model, device=cmd_args["device"], data=data)
+    framework = get_framework(framework, model=model, device=cmd_args["device"])
 
     # Call framework
     framework.infer(data, save_dir)
